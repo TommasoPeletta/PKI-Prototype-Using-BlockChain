@@ -9,47 +9,46 @@ allClient = []
 #Each instance has the socket and address that is associated with items
 #Along with an assigned ID and a name chosen by the client
 
-def VerifyPk(pk, mac, sign, Client):
+def VerifyPk(pk, email, sign, Client):
     #consensus group
-    return "verified"
+    return 1
     #time.sleep(10)
 
-def addAllClient(pk, mac, Client):
+def addAllClient(pk, email, Client):
     for i in allClient:
-        if i[0] == pk and i[1] == mac:
+        if i[0] == pk and i[1] == email:
             i[1] = Client
-            i[2] = 1
+            i[2] = 1 # TODO client need to be verifiedfor updating this at 1
             Client.signal = 1
-            return "successfully connected"
-        elif i[0] == pk and i[1] != mac:
+            return "verify"
+        elif i[0] == pk and i[1] != email:
             return "pk already in use"
             #pk already in use error
-        elif i[0] != pk and i[1] == mac:
+        elif i[0] != pk and i[1] == email:
             Client.signal = 2
             return "sign your last message if you want to update your pk"
-    print("yess")
     Client.signal = 3
     return "sign your last message if you want to save your pk"
 '''
             Client.pk = pk
-            Client.mac = mac
-            allClient.append([pk, mac, Client, 1])
+            Client.email = email
+            allClient.append([pk, email, Client, 1])
 '''
 
 
 def discClient(Client):
     for i in allClient:
-        if i[1] == Client.mac and i[0] == Client.pk:
+        if i[1] == Client.email and i[0] == Client.pk:
             i[2] = 0
             Client.signal = 0
 
 class Client(threading.Thread):
-    def __init__(self, socket, address, pk, mac, signal,c):
+    def __init__(self, socket, address, pk, email, signal,c):
         threading.Thread.__init__(self)
         self.socket = socket
         self.address = address
         self.pk = pk
-        self.mac = mac
+        self.email = email
         self.signal = signal
         self.c = c
 
@@ -68,22 +67,30 @@ class Client(threading.Thread):
             try:
                 data = self.socket.recv(32)
                 parsed = data.split()
-                if len(parsed) > 1:
+                if len(parsed) == 1: # ask the blockchain
+                    if parsed[0] == b'getChain':
+                        self.socket.sendall(str.encode("here is the blockchian"))
+                if len(parsed) == 3: # no need to be connected make the server verify the pair
+                    if parsed[0] == b'verify':
+                        self.socket.sendall(str.encode('pair key-email verified'))
+                if len(parsed) > 3:
                     print(self.signal)
-                    if self.signal == 0 or self.signal == 1: # client want to connect
-                        if parsed[0] == b'pk' and parsed[2] == b'mac':
-                            con = addAllClient(parsed[1],parsed[3], self)
-                            self.socket.sendall(str.encode(con))
-                    if self.signal == 2 and len(parsed) > 5: # client want to update pk
-                        if parsed[0] == b'pk' and parsed[2] == b'mac':
-                            if parsed[4] == b'sign':
+                    if self.signal == 0: # client want to connect
+                        if parsed[0] == b'pk' and parsed[2] == b'email':
+                            self.socket.sendall(str.encode("pls authenticate"))
+                if len(parsed) > 5
+                    if parsed[0] == b'pk' and parsed[2] == b'email' and parsed[4] == b'sign':
+                        ver = VerifyPk(parsed[1], parsed[3], parsed[5],self)
+                        if ver:
+                            if self.signal == 1:#
                                 ver = VerifyPk(parsed[1], parsed[3], parsed[5],self)
-                                self.socket.sendall(str.encode(ver))
-                    if self.signal == 3 and len(parsed) > 5: # client want to save new pk
-                        if parsed[0] == b'pk' and parsed[2] == b'mac':
-                            if parsed[4] == b'sign':
+                                self.socket.sendall(str.encode("connected"))
+                            if self.signal == 2: # client want to update pk
                                 ver = VerifyPk(parsed[1], parsed[3], parsed[5],self)
-                                self.socket.sendall(str.encode(ver))
+                                self.socket.sendall(str.encode("send new pk and sign"))
+                            if self.signal == 3: # client want to save new pk
+                                ver = VerifyPk(parsed[1], parsed[3], parsed[5],self)
+                                self.socket.sendall(str.encode("want to save new pair pk email?"))
 
             except Exception as e:
                 print("Client " + str(self.address) + " has disconnected")
@@ -112,7 +119,7 @@ def listenServer(newConnectionsThread):
             print(connections[0].socket)
             print(connections[0].address)
             print(connections[0].pk)
-            print(connections[0].mac)
+            print(connections[0].email)
             print(connections[0].signal)
 
 

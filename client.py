@@ -1,6 +1,7 @@
 import socket
 import threading
 import sys
+import rsa
 
 #Wait for incoming data from server
 #.decode is used to turn the message in bytes to a string
@@ -33,8 +34,15 @@ receiveThread.start()
 
 #Send data to server
 #str.encode is used to turn the string message into bytes so it can be sent across the network
+pubkey = ''
+privkey = ''
 while True:
     message = input()
-    sock.sendall(str.encode(message))
     if message == "disconnect":
         sock.close()
+        break
+    elif message == "generate key":
+        (pubkey, privkey) = rsa.newkeys(1024)
+        print(pubkey,privkey)
+    else:
+        sock.sendall(str.encode(message))
