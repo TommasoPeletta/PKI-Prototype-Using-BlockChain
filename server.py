@@ -1,6 +1,11 @@
 import socket
 import threading
 import time
+import random
+import string
+import rsa
+import pickle
+
 #Variables for holding information about connections
 connections = []
 total_connections = 0
@@ -9,10 +14,23 @@ allClient = []
 #Each instance has the socket and address that is associated with items
 #Along with an assigned ID and a name chosen by the client
 
+
+def generateChallange(length = 20):
+    letters = string.ascii_lowercase
+    challange = ''.join(random.choice(letters) for i in range(length))
+    return challange
+
 def VerifyPk(pk, email, sign, Client):
     #consensus group
     return 1
     #time.sleep(10)
+
+
+def verifySign():
+        #authenticate client if pair already exist
+    return 1
+
+
 
 def addAllClient(pk, email, Client):
     for i in allClient:
@@ -43,12 +61,13 @@ def discClient(Client):
             Client.signal = 0
 
 class Client(threading.Thread):
-    def __init__(self, socket, address, pk, email, signal,c):
+    def __init__(self, socket, address, pk, email,challange, signal,c):
         threading.Thread.__init__(self)
         self.socket = socket
         self.address = address
         self.pk = pk
         self.email = email
+        self.challange = challange
         self.signal = signal
         self.c = c
 
@@ -62,7 +81,7 @@ class Client(threading.Thread):
     #.decode is used to convert the byte data into a printable string
 
     def run(self):
-        self.socket.sendall(str.encode("waiting for signed pk"))
+        self.socket.sendall(str.encode('challange '+self.challange))
         while self.c:
             try:
                 data = self.socket.recv(32)
@@ -76,11 +95,14 @@ class Client(threading.Thread):
                 if len(parsed) > 3:
                     print(self.signal)
                     if self.signal == 0: # client want to connect
-                        if parsed[0] == b'pk' and parsed[2] == b'email':
+                        if parsed[0] == b'pk' and parsed[2] == b'email' and parsed[4] == b'sign':
+                            verifySign()
                             self.socket.sendall(str.encode("pls authenticate"))
-                if len(parsed) > 5
-                    if parsed[0] == b'pk' and parsed[2] == b'email' and parsed[4] == b'sign':
-                        ver = VerifyPk(parsed[1], parsed[3], parsed[5],self)
+                if len(parsed) > 6:
+                    if parsed[0] == b'pk' and parsed[3] == b'email' and parsed[5] == b'sign':
+                        pk = rsa.PublicKey(parsed[1],parsed[2])
+                        message = parsed[0] + ' ' + pk + ' ' + parsed[3] + ' ' + parsed[4] + ' ' + parsed[5] + ' ' + self.challange
+                        ver = VerifySign(message,parsed[5],self)
                         if ver:
                             if self.signal == 1:#
                                 ver = VerifyPk(parsed[1], parsed[3], parsed[5],self)
@@ -106,7 +128,8 @@ def newConnections(socket):
     while True:
         sock, address = socket.accept()
         global total_connections
-        connections.append(Client(sock, address, 0, 0, 0, True))
+        challange = generateChallange()
+        connections.append(Client(sock, address, 0, 0, challange,0 , True))
         connections[len(connections) - 1].start()
         print("New connection at ID " + str(connections[len(connections) - 1]))
         total_connections += 1

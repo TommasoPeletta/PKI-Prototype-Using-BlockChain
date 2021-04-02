@@ -2,13 +2,18 @@ import socket
 import threading
 import sys
 import rsa
+import pickle
 
 #Wait for incoming data from server
 #.decode is used to turn the message in bytes to a string
+challange = ''
 def receive(socket, signal):
     while signal:
         try:
             data = socket.recv(32)
+            parsed = data.split()
+            if parsed[0] == 'challange':
+                challange = str.decode(data)
             print(str(data.decode("utf-8")))
         except:
             print("You have been disconnected from the server")
@@ -18,7 +23,7 @@ def receive(socket, signal):
 #Get host and port
 host = "localhost"
 port = 1818
-
+challange = ''
 #Attempt connection to server
 try:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -36,6 +41,7 @@ receiveThread.start()
 #str.encode is used to turn the string message into bytes so it can be sent across the network
 pubkey = ''
 privkey = ''
+email = ''
 while True:
     message = input()
     if message == "disconnect":
@@ -44,5 +50,17 @@ while True:
     elif message == "generate key":
         (pubkey, privkey) = rsa.newkeys(1024)
         print(pubkey,privkey)
+    elif message == "set email":
+        email = input()
+    elif message == "connect":
+        strpubkey = str(pubkey.n) + ' ' + str(pubkey.e)
+        verify = 'pk ' + strpubkey + ' ' + 'email ' + email + ' ' + 'sign ' + challange
+        hash = rsa.compute_hash(str.encode(verify,"utf-8"), 'SHA-1')
+        signature = rsa.sign_hash(hash, privkey, 'SHA-1')
+        print(signature)
+        print(type(verify))
+        print(type(signature))
+        send = verify + ' ' + signature.decode("utf-8")
+        sock.sendall(str.encode(send))
     else:
-        sock.sendall(str.encode(message))
+        print('hello')
