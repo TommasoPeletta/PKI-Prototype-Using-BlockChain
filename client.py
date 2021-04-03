@@ -9,13 +9,16 @@ import hashlib
 #.decode is used to turn the message in bytes to a string
 challange = ''
 def receive(socket, signal):
+    global challange
     while signal:
         try:
-            data = socket.recv(32)
+            data = socket.recv(32).decode()
             parsed = data.split()
             if parsed[0] == 'challange':
-                challange = str.decode(data)
-            print(str(data.decode("utf-8")))
+                challange = parsed[1]
+                print('received challange ' + challange)
+            else:
+                print(data)
         except:
             print("You have been disconnected from the server")
             signal = False
@@ -56,18 +59,9 @@ while True:
     elif message == "connect":
         strpubkey = str(pubkey.n) + ' ' + str(pubkey.e)
         verify = 'pk ' + strpubkey + ' ' + 'email ' + email + ' ' + 'sign ' + challange
-        signature = rsa.sign(verify.encode('utf-8'), privkey,'SHA-256')
-        print(signature)
-        signature = signature.hex()
-        print(bytes.fromhex(signature))
-        ver = rsa.verify(verify.encode(), bytes.fromhex(signature), pubkey)
-        print(ver)
-        print(signature)
-        print(type(verify))
-        print(type(signature))
-        print(signature.decode())
-        send = verify
+        signature = rsa.sign(verify.encode('utf-8'), privkey,'SHA-256').hex()
+        verify = verify + ' ' + signature
         sock.sendall(str.encode(verify))
-        sock.sendall(signature)
+        print('sending signed pk email')
     else:
         print('hello')

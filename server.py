@@ -26,27 +26,35 @@ def VerifyPk(pk, email, sign, Client):
     #time.sleep(10)
 
 
-def verifySign():
-        #authenticate client if pair already exist
-    return 1
+def VerifySign(parsed,pk, challange):
+    message = parsed[0] + ' ' + str(pk.n) + ' ' + str(pk.e) + ' ' + parsed[3] + ' ' + parsed[4] + ' ' + parsed[5] + ' ' + challange
+    sign = parsed[7]
+    hashing = rsa.verify( message.encode('utf-8'),bytes.fromhex(sign), pk)
+    print(hashing)
+    if hashing == 'SHA-256':
+        return 1
+    return 0
 
 
 
 def addAllClient(pk, email, Client):
     for i in allClient:
         if i[0] == pk and i[1] == email:
-            i[1] = Client
-            i[2] = 1 # TODO client need to be verifiedfor updating this at 1
             Client.signal = 1
-            return "verify"
+            i[2] = Client
+            i[3] = 1
+            return "successfully authenticated"
         elif i[0] == pk and i[1] != email:
             return "pk already in use"
             #pk already in use error
         elif i[0] != pk and i[1] == email:
             Client.signal = 2
             return "sign your last message if you want to update your pk"
-    Client.signal = 3
-    return "sign your last message if you want to save your pk"
+    #Client.pk = pk
+    #Client.email = email
+    #Client.signal = 1
+    allClient.append([pk,email,Client,1]) #TODO replace with consensus protocol
+    return "authenticated new connection"
 '''
             Client.pk = pk
             Client.email = email
@@ -83,42 +91,40 @@ class Client(threading.Thread):
     def run(self):
         self.socket.sendall(str.encode('challange '+self.challange))
         while self.c:
-            try:
-                data = self.socket.recv(1024)
-                parsed = data.split(' ')
-                print(parsed)
-                if len(parsed) == 1: # ask the blockchain
-                    if parsed[0] == b'getChain':
-                        self.socket.sendall(str.encode("here is the blockchian"))
-                if len(parsed) == 3: # no need to be connected make the server verify the pair
-                    if parsed[0] == b'verify':
-                        self.socket.sendall(str.encode('pair key-email verified'))
-                if len(parsed) == 5 and 0:
-                    print(self.signal)
-                    if self.signal == 0: # client want to connect
-                        if parsed[0] == b'pk' and parsed[2] == b'email' and parsed[4] == b'sign':
-                            verifySign()
-                            self.socket.sendall(str.encode("pls authenticate"))
-                if len(parsed) >= 5:
+            #try:
+            data = self.socket.recv(1024).decode()
+            parsed = data.split()
+            if len(parsed) == 1: # ask the blockchain
+                if parsed[0] == b'getChain':
+                    self.socket.sendall(str.encode("here is the blockchian"))
+            if len(parsed) == 3: # no need to be connected make the server verify the pair
+                if parsed[0] == b'verify':
+                    self.socket.sendall(str.encode('pair key-email verified'))
+            if len(parsed) == 5 and 0:
+                if self.signal == 0: # client want to connect
+                    if parsed[0] == b'pk' and parsed[2] == b'email' and parsed[4] == b'sign':
+                        verifySign()
+                        self.socket.sendall(str.encode("pls authenticate"))
+            if len(parsed) >= 5 and self.signal == 0:
+                if parsed[0] == 'pk' and parsed[3] == 'email' and parsed[5] == 'sign':
+                    pk = rsa.PublicKey(int(parsed[1]),int(parsed[2]))
+                    ver = VerifySign(parsed,pk,self.challange)
+                    if ver:
+                        exit = addAllClient(pk, parsed[3], self)
+                        self.socket.sendall(str.encode(exit))
 
-                    if parsed[0] == b'pk' and parsed[3] == b'email' and parsed[5] == b'sign':
-                        pk = rsa.PublicKey(parsed[1],parsed[2])
-                        message = parsed[0] + ' ' + pk + ' ' + parsed[3] + ' ' + parsed[4] + ' ' + parsed[5] + ' ' + self.challange
-                        sing= parsed[6]
-                        print(message)
-                        print(sign)
-                        ver = VerifySign(message,parsed[5],self)
-                        if ver:
-                            if self.signal == 1:#
-                                ver = VerifyPk(parsed[1], parsed[3], parsed[5],self)
-                                self.socket.sendall(str.encode("connected"))
-                            if self.signal == 2: # client want to update pk
-                                ver = VerifyPk(parsed[1], parsed[3], parsed[5],self)
-                                self.socket.sendall(str.encode("send new pk and sign"))
-                            if self.signal == 3: # client want to save new pk
-                                ver = VerifyPk(parsed[1], parsed[3], parsed[5],self)
-                                self.socket.sendall(str.encode("want to save new pair pk email?"))
-
+                        '''
+                        if self.signal == 1:#
+                            ver = VerifyPk(parsed[1], parsed[3], parsed[5],self)
+                            self.socket.sendall(str.encode("connected"))
+                        if self.signal == 2: # client want to update pk
+                            ver = VerifyPk(parsed[1], parsed[3], parsed[5],self)
+                            self.socket.sendall(str.encode("send new pk and sign"))
+                        if self.signal == 3: # client want to save new pk
+                            ver = VerifyPk(parsed[1], parsed[3], parsed[5],self)
+                            self.socket.sendall(str.encode("want to save new pair pk email?"))
+                            '''
+'''
             except Exception as e:
                 print("Client " + str(self.address) + " has disconnected")
                 self.socket.sendall(str.encode("You have been disconnected"))
@@ -127,7 +133,7 @@ class Client(threading.Thread):
                 connections.remove(self)
                 print(e)
                 break
-
+'''
 #Wait for new connections
 def newConnections(socket):
     while True:
