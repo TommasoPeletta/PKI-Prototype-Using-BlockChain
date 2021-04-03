@@ -84,24 +84,29 @@ class Client(threading.Thread):
         self.socket.sendall(str.encode('challange '+self.challange))
         while self.c:
             try:
-                data = self.socket.recv(32)
-                parsed = data.split()
+                data = self.socket.recv(1024)
+                parsed = data.split(' ')
+                print(parsed)
                 if len(parsed) == 1: # ask the blockchain
                     if parsed[0] == b'getChain':
                         self.socket.sendall(str.encode("here is the blockchian"))
                 if len(parsed) == 3: # no need to be connected make the server verify the pair
                     if parsed[0] == b'verify':
                         self.socket.sendall(str.encode('pair key-email verified'))
-                if len(parsed) > 3:
+                if len(parsed) == 5 and 0:
                     print(self.signal)
                     if self.signal == 0: # client want to connect
                         if parsed[0] == b'pk' and parsed[2] == b'email' and parsed[4] == b'sign':
                             verifySign()
                             self.socket.sendall(str.encode("pls authenticate"))
-                if len(parsed) > 6:
+                if len(parsed) >= 5:
+
                     if parsed[0] == b'pk' and parsed[3] == b'email' and parsed[5] == b'sign':
                         pk = rsa.PublicKey(parsed[1],parsed[2])
                         message = parsed[0] + ' ' + pk + ' ' + parsed[3] + ' ' + parsed[4] + ' ' + parsed[5] + ' ' + self.challange
+                        sing= parsed[6]
+                        print(message)
+                        print(sign)
                         ver = VerifySign(message,parsed[5],self)
                         if ver:
                             if self.signal == 1:#

@@ -3,6 +3,7 @@ import threading
 import sys
 import rsa
 import pickle
+import hashlib
 
 #Wait for incoming data from server
 #.decode is used to turn the message in bytes to a string
@@ -41,7 +42,7 @@ receiveThread.start()
 #str.encode is used to turn the string message into bytes so it can be sent across the network
 pubkey = ''
 privkey = ''
-email = ''
+email = 'tom'
 while True:
     message = input()
     if message == "disconnect":
@@ -55,12 +56,18 @@ while True:
     elif message == "connect":
         strpubkey = str(pubkey.n) + ' ' + str(pubkey.e)
         verify = 'pk ' + strpubkey + ' ' + 'email ' + email + ' ' + 'sign ' + challange
-        hash = rsa.compute_hash(str.encode(verify,"utf-8"), 'SHA-1')
-        signature = rsa.sign_hash(hash, privkey, 'SHA-1')
+        signature = rsa.sign(verify.encode('utf-8'), privkey,'SHA-256')
+        print(signature)
+        signature = signature.hex()
+        print(bytes.fromhex(signature))
+        ver = rsa.verify(verify.encode(), bytes.fromhex(signature), pubkey)
+        print(ver)
         print(signature)
         print(type(verify))
         print(type(signature))
-        send = verify + ' ' + signature.decode("utf-8")
-        sock.sendall(str.encode(send))
+        print(signature.decode())
+        send = verify
+        sock.sendall(str.encode(verify))
+        sock.sendall(signature)
     else:
         print('hello')
