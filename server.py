@@ -5,11 +5,13 @@ import random
 import string
 import rsa
 import pickle
-
+from datetime import datetime
 #Variables for holding information about connections
 connections = []
 total_connections = 0
 allClient = []
+blockchain = []
+currentblock = [0, 0, [], 0, [],  []]  # [timestamp, blockid, tuple(pk, email, challange, sign), hash,id groupe consensus, singatures]
 #Client class, new instance created for each connected client
 #Each instance has the socket and address that is associated with items
 #Along with an assigned ID and a name chosen by the client
@@ -20,8 +22,20 @@ def generateChallange(length = 20):
     challange = ''.join(random.choice(letters) for i in range(length))
     return challange
 
-def VerifyPk(pk, email, sign, Client):
+def Verifyblock(block):
     #consensus group
+    now = datetime.now()
+    block[0] = datetime.timestamp(now)
+    block[1] = generateChallange()
+    holdhash = blockchain[-1][3]
+    eligibleconsensus = []
+    for i in range allClient:
+        if i[3] == 0:
+            eligibleconsensus.append([i[0],i[1],i[2]])
+    block[4] = random.sample(eligibleconsensus, 3)
+    block[3] = rsa.compute_hash(str.ecnode(str([block[0],block[1],block[2],block[4],holdhash])), 'SHA-256').hex()
+    if 1 : #if consensus groupe ok
+        blockchain.append(block)
     return 1
     #time.sleep(10)
 
@@ -37,29 +51,37 @@ def VerifySign(parsed,pk, challange):
 
 
 
-def addAllClient(pk, email, Client):
+def addAllClient(pk, email, parsed, Client):
     for i in allClient:
         if i[0] == pk and i[1] == email:
-            Client.signal = 1
-            i[2] = Client
-            i[3] = 1
-            return "successfully authenticated"
+            if i[3] == 2:
+                return "wait block to be validated"
+            if VerifySign(parsed,pk,Client.challange):
+                Client.signal = 1
+                i[2] = Client
+                i[3] = 1
+                return "successfully authenticated"
         elif i[0] == pk and i[1] != email:
             return "pk already in use"
             #pk already in use error
         elif i[0] != pk and i[1] == email:
+            if VerifySign(parsed,pk,Client.challange):
             Client.signal = 2
-            return "sign your last message if you want to update your pk"
+            return "sign with both keys if you want to authenticate"
     #Client.pk = pk
     #Client.email = email
     #Client.signal = 1
-    allClient.append([pk,email,Client,1]) #TODO replace with consensus protocol
+    allClient.append([pk,email,Client,2])
+    currentblock[2].append([pk, email, Client.challange, parsed[7]])
+    Client.socket.sendall(str.encode("added to current block"))
+    if len(currentblock[2]) > 3:
+        Client.socket.sendall(str.encode("added to current block"))
+        VerifyBlock(currentblock) #TODO make funcion concurrent
+        currentblock = [0, 0, [], 0, [],  []]
+
+    allClient.append([pk,email,Client,0]) #TODO replace with consensus protocol
     return "authenticated new connection"
-'''
-            Client.pk = pk
-            Client.email = email
-            allClient.append([pk, email, Client, 1])
-'''
+
 
 
 def discClient(Client):
@@ -110,7 +132,7 @@ class Client(threading.Thread):
                     pk = rsa.PublicKey(int(parsed[1]),int(parsed[2]))
                     ver = VerifySign(parsed,pk,self.challange)
                     if ver:
-                        exit = addAllClient(pk, parsed[3], self)
+                        exit = addAllClient(pk, parsed[3], parsed, self)
                         self.socket.sendall(str.encode(exit))
 
                         '''
