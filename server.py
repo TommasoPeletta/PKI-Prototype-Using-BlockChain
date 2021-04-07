@@ -33,9 +33,9 @@ def Verifyblock(block):
         if i[3] == 0:
             eligibleconsensus.append([i[0],i[1],i[2]])
     block[4] = random.sample(eligibleconsensus, 3)
-    block[3] = rsa.compute_hash(str.ecnode(str([block[0],block[1],block[2],block[4],holdhash])), 'SHA-256').hex()
+    block[3] = rsa.compute_hash(str.encode(str([block[0],block[1],block[2],block[4],holdhash])), 'SHA-256').hex()
     if 1 : #if consensus groupe ok
-        blockchain.append(block)
+        blockchain.append(block)ty
     return 1
     #time.sleep(10)
 
