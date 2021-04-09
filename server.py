@@ -6,36 +6,46 @@ import string
 import rsa
 import pickle
 from datetime import datetime
+import json
 #Variables for holding information about connections
 connections = []
 total_connections = 0
 allClient = []
-blockchain = []
+blockchain=[]
 currentblock = [0, 0, [], 0, [],  []]  # [timestamp, blockid, tuple(pk, email, challange, sign), hash,id groupe consensus, singatures]
 #Client class, new instance created for each connected client
 #Each instance has the socket and address that is associated with items
 #Along with an assigned ID and a name chosen by the client
-
 
 def generateChallange(length = 20):
     letters = string.ascii_lowercase
     challange = ''.join(random.choice(letters) for i in range(length))
     return challange
 
-def Verifyblock(block):
+def VerifyBlock(block):
     #consensus group
+    global blockchain
+    print('verifying block')
     now = datetime.now()
     block[0] = datetime.timestamp(now)
-    block[1] = generateChallange()
+    block[1] = blockchain[-1][1]+1
     holdhash = blockchain[-1][3]
     eligibleconsensus = []
-    for i in range allClient:
-        if i[3] == 0:
-            eligibleconsensus.append([i[0],i[1],i[2]])
-    block[4] = random.sample(eligibleconsensus, 3)
-    block[3] = rsa.compute_hash(str.encode(str([block[0],block[1],block[2],block[4],holdhash])), 'SHA-256').hex()
+    while 1:
+        try:
+            for i in allClient:
+                if i[3] == 1:
+                    eligibleconsensus.append(i[1])
+            block[4] = random.sample(eligibleconsensus, 3)
+            block[3] = rsa.compute_hash(str.encode(str([block[0],block[1],block[2],block[4],holdhash])), 'SHA-256').hex()
+            break
+        except:
+            a = 0
     if 1 : #if consensus groupe ok
-        blockchain.append(block)ty
+        block[5] = ['signature1','signature2','signature3']
+        blockchain.append(block)
+        with open('blockchain1.json', 'w') as outfile:
+            json.dump(blockchain, outfile,indent=1)
     return 1
     #time.sleep(10)
 
@@ -52,11 +62,15 @@ def VerifySign(parsed,pk, challange):
 
 
 def addAllClient(pk, email, parsed, Client):
+    global currentblock
+    print(pk)
+    print(email)
     for i in allClient:
         if i[0] == pk and i[1] == email:
             if i[3] == 2:
                 return "wait block to be validated"
             if VerifySign(parsed,pk,Client.challange):
+                print('in allclient')
                 Client.signal = 1
                 i[2] = Client
                 i[3] = 1
@@ -66,20 +80,21 @@ def addAllClient(pk, email, parsed, Client):
             #pk already in use error
         elif i[0] != pk and i[1] == email:
             if VerifySign(parsed,pk,Client.challange):
-            Client.signal = 2
-            return "sign with both keys if you want to authenticate"
+                Client.signal = 2
+                return "sign with both keys if you want to authenticate"
     #Client.pk = pk
     #Client.email = email
     #Client.signal = 1
     allClient.append([pk,email,Client,2])
-    currentblock[2].append([pk, email, Client.challange, parsed[7]])
+    currentblock[2].append([[pk.n, pk.e], email, Client.challange, parsed[7]])
+    print(currentblock)
     Client.socket.sendall(str.encode("added to current block"))
-    if len(currentblock[2]) > 3:
+    if len(currentblock[2]) > 2:
         Client.socket.sendall(str.encode("added to current block"))
         VerifyBlock(currentblock) #TODO make funcion concurrent
         currentblock = [0, 0, [], 0, [],  []]
 
-    allClient.append([pk,email,Client,0]) #TODO replace with consensus protocol
+    #allClient.append([pk,email,Client,0]) #TODO replace with consensus protocol
     return "authenticated new connection"
 
 
@@ -132,7 +147,8 @@ class Client(threading.Thread):
                     pk = rsa.PublicKey(int(parsed[1]),int(parsed[2]))
                     ver = VerifySign(parsed,pk,self.challange)
                     if ver:
-                        exit = addAllClient(pk, parsed[3], parsed, self)
+                        exit = addAllClient(pk, parsed[4], parsed, self)
+                        print('hi')
                         self.socket.sendall(str.encode(exit))
 
                         '''
@@ -159,6 +175,7 @@ class Client(threading.Thread):
 #Wait for new connections
 def newConnections(socket):
     while True:
+        print(blockchain)
         sock, address = socket.accept()
         global total_connections
         challange = generateChallange()
@@ -181,10 +198,18 @@ def listenServer(newConnectionsThread):
 
 
 def main():
+    global blockchain
     #Get host and port
     host = "localhost"
     port = 1818
+    with open('blockchain.json', 'r') as outfile:
+        blockchain=json.load(outfile)
 
+    for i in blockchain:
+        for j in i[2]:
+            pk = rsa.PublicKey(int(j[0][0]),int(j[0][1]))
+            allClient.append([pk,j[1],Client(0, 0, 0, 0, 0,0 , True),0])
+    print(blockchain[-1][1])
     #Create new server socket
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind((host, port))
