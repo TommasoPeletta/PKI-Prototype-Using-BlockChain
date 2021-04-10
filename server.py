@@ -12,7 +12,10 @@ connections = []
 total_connections = 0
 allClient = []
 blockchain=[]
-currentblock = [0, 0, [], 0, [],  []]  # [timestamp, blockid, tuple(pk, email, challange, sign), hash,id groupe consensus, singatures]
+currentblock = [0, 0, [], 0, [],  []]
+blockUnderVer = []
+invalidblockcount = []
+  # [timestamp, blockid, tuple(pk, email, challange, sign), hash,id groupe consensus, singatures]
 #Client class, new instance created for each connected client
 #Each instance has the socket and address that is associated with items
 #Along with an assigned ID and a name chosen by the client
@@ -21,6 +24,18 @@ def generateChallange(length = 20):
     letters = string.ascii_lowercase
     challange = ''.join(random.choice(letters) for i in range(length))
     return challange
+
+def ConsensusProtocol(block):
+    for i in block[4]:
+        for j in allClient:
+            if i == j[1]:
+                strblock = json.dumps(block)
+                j[2].socket.sendall(str.encode(strblock))
+    global blockUnderVer
+    global invalidblockcount
+    blockUnderVer.append(block)
+    invalidblockcount.append[block[0],[],[]]
+    return 0
 
 def VerifyBlock(block):
     #consensus group
@@ -41,16 +56,22 @@ def VerifyBlock(block):
             break
         except:
             a = 0
-    if 1 : #if consensus groupe ok
-        block[5] = ['signature1','signature2','signature3']
-        blockchain.append(block)
-        with open('blockchain1.json', 'w') as outfile:
-            json.dump(blockchain, outfile,indent=1)
+    block[5] = ['0','0','0']
+    ConsensusProtocol(block) : #if consensus groupe ok
     return 1
     #time.sleep(10)
 
 
 def VerifySign(parsed,pk, challange):
+    message = parsed[0] + ' ' + str(pk.n) + ' ' + str(pk.e) + ' ' + parsed[3] + ' ' + parsed[4] + ' ' + parsed[5] + ' ' + challange
+    sign = parsed[7]
+    hashing = rsa.verify( message.encode('utf-8'),bytes.fromhex(sign), pk)
+    print(hashing)
+    if hashing == 'SHA-256':
+        return 1
+    return 0
+
+def VerifySignCons(hashblock,pk,sign):
     message = parsed[0] + ' ' + str(pk.n) + ' ' + str(pk.e) + ' ' + parsed[3] + ' ' + parsed[4] + ' ' + parsed[5] + ' ' + challange
     sign = parsed[7]
     hashing = rsa.verify( message.encode('utf-8'),bytes.fromhex(sign), pk)
@@ -88,7 +109,6 @@ def addAllClient(pk, email, parsed, Client):
     allClient.append([pk,email,Client,2])
     currentblock[2].append([[pk.n, pk.e], email, Client.challange, parsed[7]])
     print(currentblock)
-    Client.socket.sendall(str.encode("added to current block"))
     if len(currentblock[2]) > 2:
         Client.socket.sendall(str.encode("added to current block"))
         VerifyBlock(currentblock) #TODO make funcion concurrent
@@ -126,6 +146,7 @@ class Client(threading.Thread):
     #.decode is used to convert the byte data into a printable string
 
     def run(self):
+        global blockUnderVer
         self.socket.sendall(str.encode('challange '+self.challange))
         while self.c:
             #try:
@@ -133,7 +154,7 @@ class Client(threading.Thread):
             parsed = data.split()
             if len(parsed) == 1: # ask the blockchain
                 if parsed[0] == b'getChain':
-                    self.socket.sendall(str.encode("here is the blockchian"))
+                    self.socket.sendall(str.encode("here is the blockchain"))
             if len(parsed) == 3: # no need to be connected make the server verify the pair
                 if parsed[0] == b'verify':
                     self.socket.sendall(str.encode('pair key-email verified'))
@@ -143,13 +164,48 @@ class Client(threading.Thread):
                         verifySign()
                         self.socket.sendall(str.encode("pls authenticate"))
             if len(parsed) >= 5 and self.signal == 0:
-                if parsed[0] == 'pk' and parsed[3] == 'email' and parsed[5] == 'sign':
+                if parsed[0] == 'pk' and parsed[3] == 'email' and parsed[5] == 'chal':
                     pk = rsa.PublicKey(int(parsed[1]),int(parsed[2]))
                     ver = VerifySign(parsed,pk,self.challange)
                     if ver:
                         exit = addAllClient(pk, parsed[4], parsed, self)
-                        print('hi')
                         self.socket.sendall(str.encode(exit))
+                if parsed[0] == 'pk' and parsed[3] == 'email' and parsed[5] == 'chal':
+                    pk = rsa.PublicKey(int(parsed[1]),int(parsed[2]))
+                    for i in blockUnderVer:
+                        countclient = 0
+                        for c in i[4]:
+                            if c == parsed[4]:
+                                blockID = i[0]
+                                if parsed[6] != block[3]:
+                                    verBlock = VerifySignCons(i[3],pk,parsed[6])
+                                    if verBlock:
+                                        ver = VerifySign(parsed,pk,parsed[6])
+                                        if ver:
+                                            for b in validblockcount:
+                                                if blockID == b[0]:
+                                                    b[1].append(parsed[4])
+                                                    i[5][countclient] = parsed[6]
+                                                    if len(b[1])+len(b[2]) == 3:
+                                                        if len(b[1]) > len(b[2]):
+                                                            blockchain.append(i)
+                                                            with open('blockchain1.json', 'w') as outfile:
+                                                                json.dump(blockchain, outfile,indent=1):
+                                                        validblockcount.remove(b)
+                                                        blockUnderVer.remove(i)
+
+
+                                            self.socket.sendall(str.encode('valid block'))
+
+                                else:
+                                    ver = VerifySign(parsed,pk,i[3])
+                                    if ver:
+                                        for b in validblockcount:
+                                            if blockID == b[0]:
+                                                b[2].append(parsed[4])
+                                        self.socket.sendall(str.encode('invalid block'))
+                        countclient += 1
+
 
                         '''
                         if self.signal == 1:#

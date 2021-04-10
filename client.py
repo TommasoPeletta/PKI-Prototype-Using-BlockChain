@@ -8,26 +8,62 @@ import hashlib
 #Wait for incoming data from server
 #.decode is used to turn the message in bytes to a string
 challange = ''
-
+pubkey = ''
+privkey = ''
+email = 'tom'
 def connect(pubkey,privkey,email,challange):
     strpubkey = str(pubkey.n) + ' ' + str(pubkey.e)
-    verify = 'pk ' + strpubkey + ' ' + 'email ' + email + ' ' + 'sign ' + challange
+    verify = 'pk ' + strpubkey + ' ' + 'email ' + email + ' ' + 'chal ' + challange
     signature = rsa.sign(verify.encode('utf-8'), privkey,'SHA-256').hex()
     verify = verify + ' ' + signature
     sock.sendall(str.encode(verify))
     print('sending signed pk email')
+
+def VerifyBlock(block):
+    ver = 1
+    for i in block[2]:
+        message = 'pk' + ' ' + i[0][0] + ' ' + i[0][1] + ' ' + 'email' + ' ' + i[1] + ' ' + 'sign' + ' ' + i[2]
+        pk = rsa.PublicKey(i[0][0],i[0][1])
+        sign = i[3]
+        hashing = rsa.verify( message.encode('utf-8'),bytes.fromhex(sign), pk)
+        print(hashing)
+        if hashing == 'SHA-256':
+            ver = ver and 1
+        else:
+            ver = 0
+
+    if ver:
+        signatureblock = rsa.sign(block[3].encode('utf-8'), privkey,'SHA-256').hex()
+        strpubkey = str(pubkey.n) + ' ' + str(pubkey.e)
+        verify = 'pk ' + strpubkey + ' ' + 'email ' + email + ' ' + 'sign ' + signatureblock
+        signature = rsa.sign(verify.encode('utf-8'), privkey,'SHA-256').hex()
+        verify = verify + ' ' + signature
+        sock.sendall(str.encode(verify))
+        print('sending consensus answer yes')
+    else :
+        trpubkey = str(pubkey.n) + ' ' + str(pubkey.e)
+        verify = 'pk ' + strpubkey + ' ' + 'email ' + email + ' ' + 'sign ' + block[3]
+        signature = rsa.sign(verify.encode('utf-8'), privkey,'SHA-256').hex()
+        verify = verify + ' ' + signature
+        sock.sendall(str.encode(verify))
+        print('sending consensus answer no')
+    return 0
 
 def receive(socket, signal):
     global challange
     while signal:
         try:
             data = socket.recv(32).decode()
-            parsed = data.split()
-            if parsed[0] == 'challange':
-                challange = parsed[1]
-                print('received challange ' + challange)
+            if data[0] == '[':
+                block = json.loads(data)
+                VerifyBlock(block)
             else:
-                print(data)
+                parsed = data.split()
+                if parsed[0] == 'challange':
+                    challange = parsed[1]
+                    print('received challange ' + challange)
+                else:
+                    print(data)
         except:
             print("You have been disconnected from the server")
             signal = False
@@ -52,9 +88,7 @@ receiveThread.start()
 
 #Send data to server
 #str.encode is used to turn the string message into bytes so it can be sent across the network
-pubkey = ''
-privkey = ''
-email = 'tom'
+
 while True:
     message = input()
     if message == "disconnect":
