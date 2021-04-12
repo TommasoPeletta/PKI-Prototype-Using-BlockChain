@@ -30,11 +30,12 @@ def ConsensusProtocol(block):
         for j in allClient:
             if i == j[1]:
                 strblock = json.dumps(block)
+                print('sending block')
                 j[2].socket.sendall(str.encode(strblock))
     global blockUnderVer
     global invalidblockcount
     blockUnderVer.append(block)
-    invalidblockcount.append[block[0],[],[]]
+    invalidblockcount.append([block[0],[],[]])
     return 0
 
 def VerifyBlock(block):
@@ -57,7 +58,7 @@ def VerifyBlock(block):
         except:
             a = 0
     block[5] = ['0','0','0']
-    ConsensusProtocol(block) : #if consensus groupe ok
+    ConsensusProtocol(block)  #if consensus groupe ok
     return 1
     #time.sleep(10)
 
@@ -72,9 +73,7 @@ def VerifySign(parsed,pk, challange):
     return 0
 
 def VerifySignCons(hashblock,pk,sign):
-    message = parsed[0] + ' ' + str(pk.n) + ' ' + str(pk.e) + ' ' + parsed[3] + ' ' + parsed[4] + ' ' + parsed[5] + ' ' + challange
-    sign = parsed[7]
-    hashing = rsa.verify( message.encode('utf-8'),bytes.fromhex(sign), pk)
+    hashing = rsa.verify( hashblock.encode('utf-8'),bytes.fromhex(sign), pk)
     print(hashing)
     if hashing == 'SHA-256':
         return 1
@@ -163,35 +162,40 @@ class Client(threading.Thread):
                     if parsed[0] == b'pk' and parsed[2] == b'email' and parsed[4] == b'sign':
                         verifySign()
                         self.socket.sendall(str.encode("pls authenticate"))
-            if len(parsed) >= 5 and self.signal == 0:
-                if parsed[0] == 'pk' and parsed[3] == 'email' and parsed[5] == 'chal':
+            if len(parsed) >= 5:
+                if self.signal == 0:
+                    if parsed[0] == 'pk' and parsed[3] == 'email' and parsed[5] == 'chal':
+                        pk = rsa.PublicKey(int(parsed[1]),int(parsed[2]))
+                        ver = VerifySign(parsed,pk,self.challange)
+                        if ver:
+                            exit = addAllClient(pk, parsed[4], parsed, self)
+                            self.socket.sendall(str.encode(exit))
+                if parsed[0] == 'pk' and parsed[3] == 'email' and parsed[5] == 'sign':
                     pk = rsa.PublicKey(int(parsed[1]),int(parsed[2]))
-                    ver = VerifySign(parsed,pk,self.challange)
-                    if ver:
-                        exit = addAllClient(pk, parsed[4], parsed, self)
-                        self.socket.sendall(str.encode(exit))
-                if parsed[0] == 'pk' and parsed[3] == 'email' and parsed[5] == 'chal':
-                    pk = rsa.PublicKey(int(parsed[1]),int(parsed[2]))
+                    "managing consensus answer"
                     for i in blockUnderVer:
                         countclient = 0
                         for c in i[4]:
                             if c == parsed[4]:
                                 blockID = i[0]
-                                if parsed[6] != block[3]:
+                                if parsed[6] != i[3]:
+                                    "say yes"
                                     verBlock = VerifySignCons(i[3],pk,parsed[6])
                                     if verBlock:
                                         ver = VerifySign(parsed,pk,parsed[6])
                                         if ver:
-                                            for b in validblockcount:
+                                            for b in invalidblockcount:
                                                 if blockID == b[0]:
                                                     b[1].append(parsed[4])
                                                     i[5][countclient] = parsed[6]
+                                                    print(parsed[6])
+                                                    print(len(b[1])+len(b[2]))
                                                     if len(b[1])+len(b[2]) == 3:
                                                         if len(b[1]) > len(b[2]):
                                                             blockchain.append(i)
                                                             with open('blockchain1.json', 'w') as outfile:
-                                                                json.dump(blockchain, outfile,indent=1):
-                                                        validblockcount.remove(b)
+                                                                json.dump(blockchain, outfile,indent=1)
+                                                        invalidblockcount.remove(b)
                                                         blockUnderVer.remove(i)
 
 
@@ -204,7 +208,7 @@ class Client(threading.Thread):
                                             if blockID == b[0]:
                                                 b[2].append(parsed[4])
                                         self.socket.sendall(str.encode('invalid block'))
-                        countclient += 1
+                            countclient += 1
 
 
                         '''

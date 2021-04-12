@@ -4,6 +4,7 @@ import sys
 import rsa
 import pickle
 import hashlib
+import json
 
 #Wait for incoming data from server
 #.decode is used to turn the message in bytes to a string
@@ -22,7 +23,7 @@ def connect(pubkey,privkey,email,challange):
 def VerifyBlock(block):
     ver = 1
     for i in block[2]:
-        message = 'pk' + ' ' + i[0][0] + ' ' + i[0][1] + ' ' + 'email' + ' ' + i[1] + ' ' + 'sign' + ' ' + i[2]
+        message = 'pk' + ' ' + str(i[0][0]) + ' ' + str(i[0][1]) + ' ' + 'email' + ' ' + i[1] + ' ' + 'chal' + ' ' + i[2]
         pk = rsa.PublicKey(i[0][0],i[0][1])
         sign = i[3]
         hashing = rsa.verify( message.encode('utf-8'),bytes.fromhex(sign), pk)
@@ -31,6 +32,7 @@ def VerifyBlock(block):
             ver = ver and 1
         else:
             ver = 0
+    print('good after for')
 
     if ver:
         signatureblock = rsa.sign(block[3].encode('utf-8'), privkey,'SHA-256').hex()
@@ -53,9 +55,12 @@ def receive(socket, signal):
     global challange
     while signal:
         try:
-            data = socket.recv(32).decode()
+            data = socket.recv(2048).decode()
             if data[0] == '[':
+                print('received block')
+                print(data)
                 block = json.loads(data)
+                print('decoded block')
                 VerifyBlock(block)
             else:
                 parsed = data.split()
@@ -64,8 +69,9 @@ def receive(socket, signal):
                     print('received challange ' + challange)
                 else:
                     print(data)
-        except:
+        except Exception as e:
             print("You have been disconnected from the server")
+            print(e)
             signal = False
             break
 
