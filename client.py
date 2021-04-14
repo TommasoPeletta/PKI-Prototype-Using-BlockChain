@@ -11,17 +11,29 @@ import json
 challange = ''
 pubkey = ''
 privkey = ''
-email = 'tom'
+email = ''
+host = "localhost"
+port = 1818
+
+'''
+connect(pubkey,privkey,email,challange) sends your signed PublicKey and email to the server in order to be authenticated
+'''
 def connect(pubkey,privkey,email,challange):
     strpubkey = str(pubkey.n) + ' ' + str(pubkey.e)
     verify = 'pk ' + strpubkey + ' ' + 'email ' + email + ' ' + 'chal ' + challange
     signature = rsa.sign(verify.encode('utf-8'), privkey,'SHA-256').hex()
     verify = verify + ' ' + signature
     sock.sendall(str.encode(verify))
-    print('sending signed pk email')
+    print('sending ' + verify)
 
+'''
+ VerifyBlock(block) verify the block sent by the server by checking all signature of new nodes in the current block
+ answer with the signature of the block's hash if the block is valid,
+ answer with the hash of the current block if it is invalid
+'''
 def VerifyBlock(block):
     ver = 1
+    print("verifying block validity")
     for i in block[2]:
         message = 'pk' + ' ' + str(i[0][0]) + ' ' + str(i[0][1]) + ' ' + 'email' + ' ' + i[1] + ' ' + 'chal' + ' ' + i[2]
         pk = rsa.PublicKey(i[0][0],i[0][1])
@@ -32,7 +44,6 @@ def VerifyBlock(block):
             ver = ver and 1
         else:
             ver = 0
-    print('good after for')
 
     if ver:
         signatureblock = rsa.sign(block[3].encode('utf-8'), privkey,'SHA-256').hex()
@@ -41,7 +52,8 @@ def VerifyBlock(block):
         signature = rsa.sign(verify.encode('utf-8'), privkey,'SHA-256').hex()
         verify = verify + ' ' + signature
         sock.sendall(str.encode(verify))
-        print('sending consensus answer yes')
+        print('sending consensus answer yes :')
+        print(verify)
     else :
         trpubkey = str(pubkey.n) + ' ' + str(pubkey.e)
         verify = 'pk ' + strpubkey + ' ' + 'email ' + email + ' ' + 'sign ' + block[3]
@@ -51,6 +63,9 @@ def VerifyBlock(block):
         print('sending consensus answer no')
     return 0
 
+'''
+ receive(socket, signal) manages received messages
+'''
 def receive(socket, signal):
     global challange
     while signal:
@@ -58,9 +73,7 @@ def receive(socket, signal):
             data = socket.recv(2048).decode()
             if data[0] == '[':
                 print('received block')
-                print(data)
                 block = json.loads(data)
-                print('decoded block')
                 VerifyBlock(block)
             else:
                 parsed = data.split()
@@ -75,11 +88,9 @@ def receive(socket, signal):
             signal = False
             break
 
-#Get host and port
-host = "localhost"
-port = 1818
-challange = ''
-#Attempt connection to server
+
+#Attemp to connect to the server
+
 try:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((host, port))
@@ -88,12 +99,11 @@ except:
     input("Press enter to quit")
     sys.exit(0)
 
-#Create new thread to wait for data
 receiveThread = threading.Thread(target = receive, args = (sock, True))
 receiveThread.start()
 
-#Send data to server
-#str.encode is used to turn the string message into bytes so it can be sent across the network
+
+#managing the client input in order to facilitate the comunication with the server by automatically formatting the messages
 
 while True:
     message = input()
@@ -121,8 +131,11 @@ while True:
         pubkey = rsa.PublicKey(109408188808701462640681109534230415304054106571571409068865576027621529910922398951526070278451372101046352348576215241867114264747162101621938943056178439695690196413133683262343747311106890948975255893206864300355425778544110774780433868823662949090038382720445032632463499921195438372329573837611870173277, 65537)
         connect(pubkey,privkey,email,challange)
     elif message == "connect new":
+        print("enter email")
         email = input()
         (pubkey, privkey) = rsa.newkeys(1024)
+        print('generating keys')
+        print((pubkey, privkey))
         connect(pubkey,privkey,email,challange)
     else:
         print('hello')
